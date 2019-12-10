@@ -4,6 +4,7 @@ import com.github.wens.netty.web.annotaction.BodyValue;
 import com.github.wens.netty.web.annotaction.ParamValue;
 import com.github.wens.netty.web.annotaction.PathValue;
 import com.github.wens.netty.web.annotaction.Router;
+import com.github.wens.netty.web.impl.SpringObjectFactory;
 import com.github.wens.netty.web.route.RegRouteInfo;
 import com.github.wens.netty.web.route.RouteInfo;
 import com.github.wens.netty.web.route.RouteMatcher;
@@ -42,9 +43,7 @@ public class ControllerScanner {
                 if (!clazz.isAnnotationPresent(com.github.wens.netty.web.annotaction.Controller.class)) {
                     continue;
                 }
-
-                objectFactory.instance(clazz.getCanonicalName(), true);
-
+                objectFactory.instance(clazz, true);
                 for (Method method : clazz.getDeclaredMethods()) {
                     if (!Modifier.isPublic(method.getModifiers()) || !method.isAnnotationPresent(Router.class)) {
                         continue;

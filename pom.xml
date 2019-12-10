@@ -3,19 +3,38 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.github.wens</groupId>
-    <artifactId>netty-web</artifactId>
-    <version>2.1.0</version>
+    <artifactId>netty-web-spring-boot-start</artifactId>
+    <version>2.1.1</version>
     <packaging>jar</packaging>
 
-    <name>netty-web</name>
+    <name>netty-web-spring-boot-start</name>
     <url>http://maven.apache.org</url>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <java.version>1.8</java.version>
     </properties>
 
 
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.1.9.RELEASE</version>
+    </parent>
+
     <dependencies>
+        <!--这个依赖是为了自动装配-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <!--这个依赖是为了读取配置文件 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
 
         <dependency>
             <groupId>junit</groupId>
@@ -42,46 +61,11 @@
             <scope>test</scope>
         </dependency>
 
-
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-core</artifactId>
-            <version>4.0.4.RELEASE</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-beans</artifactId>
-            <version>4.0.4.RELEASE</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-context</artifactId>
-            <version>4.0.4.RELEASE</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-aop</artifactId>
-            <version>4.0.4.RELEASE</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-expression</artifactId>
-            <version>4.0.4.RELEASE</version>
-            <scope>provided</scope>
-        </dependency>
-
         <dependency>
             <groupId>org.codehaus.jackson</groupId>
             <artifactId>jackson-mapper-asl</artifactId>
             <version>1.9.13</version>
         </dependency>
-
 
     </dependencies>
 
@@ -107,8 +91,8 @@
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>2.3.2</version>
                     <configuration>
-                        <source>1.7</source>
-                        <target>1.7</target>
+                        <source>1.8</source>
+                        <target>1.8</target>
                         <encoding>utf-8</encoding>
                     </configuration>
                 </plugin>
@@ -130,4 +114,6 @@
         </pluginManagement>
 
     </build>
+
+
 </project>

@@ -21,6 +21,8 @@ public class ServerConfig {
 
     private String contextPath = "";
 
+    private String scanPackage = "";
+
     private ObjectFactory objectFactory;
 
     public String getAddr() {
@@ -85,5 +87,13 @@ public class ServerConfig {
 
     public void setContextPath(String contextPath) {
         this.contextPath = contextPath;
+    }
+
+    public String getScanPackage() {
+        return scanPackage;
+    }
+
+    public void setScanPackage(String scanPackage) {
+        this.scanPackage = scanPackage;
     }
 }

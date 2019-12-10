@@ -48,7 +48,7 @@ public class ControllerInvoker {
         try {
             Method handleMethod = routeResult.getRouteInfo().getHandleMethod();
             Object returnObj = null;
-            Object controllerObject = this.objectFactory.instance(handleMethod.getDeclaringClass().getCanonicalName(), true);
+            Object controllerObject = this.objectFactory.instance(handleMethod.getDeclaringClass(), true);
             if (controllerObject instanceof Controller) {
                 controller = (Controller) controllerObject;
                 if (controller.preHandle(webContext)) {

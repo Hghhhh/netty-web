@@ -18,6 +18,10 @@ import io.netty.util.concurrent.DefaultEventExecutorGroup;
 import io.netty.util.concurrent.EventExecutorGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.stereotype.Component;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
@@ -146,11 +150,9 @@ public class WebServer {
 
     }
 
-
     public void scanRouters(String packageName) {
         controllerScanner.scanControllers(packageName);
     }
-
 
     private class ServerHandlerInitializer extends ChannelInitializer<SocketChannel> {
 
@@ -210,5 +212,13 @@ public class WebServer {
             // Close the connection as soon as the error message is sent.
             ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
         }
+    }
+
+    public ServerConfig getServerConfig() {
+        return serverConfig;
+    }
+
+    public void setServerConfig(ServerConfig serverConfig) {
+        this.serverConfig = serverConfig;
     }
 }

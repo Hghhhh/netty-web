@@ -80,14 +80,4 @@ public class TypeConvertUtils {
         }
     }
 
-
-    public static void main(String[] args) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-
-        System.out.println(Integer.valueOf(null));
-
-    }
-
-    public static void test(int i) {
-
-    }
 }

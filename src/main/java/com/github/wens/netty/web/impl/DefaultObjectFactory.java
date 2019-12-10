@@ -12,10 +12,11 @@ public class DefaultObjectFactory implements ObjectFactory {
 
     private ConcurrentHashMap<String, Object> objectCache = new ConcurrentHashMap<String, Object>();
 
-    public Object instance(String className, boolean singleton) {
+    @Override
+    public Object instance(Class className, boolean singleton) {
 
         if (singleton) {
-            return getFromObjectCache(className);
+            return getFromObjectCache(className.getCanonicalName());
         }
 
         return null;

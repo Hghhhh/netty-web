@@ -1,6 +1,7 @@
 package com.github.wens.netty.web;
 
 import com.github.wens.netty.web.annotaction.BodyValue;
+import com.github.wens.netty.web.annotaction.Dto;
 import com.github.wens.netty.web.annotaction.ParamValue;
 import com.github.wens.netty.web.annotaction.PathValue;
 import com.github.wens.netty.web.route.RouteMatcher;
@@ -20,11 +21,11 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
  */
 public class ControllerInvoker {
 
-    private RouteMatcher routeMatcher;
+    protected RouteMatcher routeMatcher;
 
-    private ObjectFactory objectFactory;
+    protected ObjectFactory objectFactory;
 
-    private ServerConfig serverConfig;
+    protected ServerConfig serverConfig;
 
     public ControllerInvoker(RouteMatcher routeMatcher, ObjectFactory objectFactory, ServerConfig serverConfig) {
         this.routeMatcher = routeMatcher;
@@ -32,23 +33,19 @@ public class ControllerInvoker {
         this.serverConfig = serverConfig;
     }
 
-    public void invoke(String method, String uri, WebContext webContext) {
-
+    public Object invoke(String method, String uri, WebContext webContext){
         RouteResult routeResult = this.routeMatcher.match(method, uri);
         if (routeResult == null) {
             webContext.getResponse().setStatus(NOT_FOUND.code(), NOT_FOUND.reasonPhrase());
-            return;
+            return null;
         }
-
         Object[] args = collectArgs(webContext, routeResult.getRouteInfo().getHandleMethod(), routeResult.getParams());
 
         Controller controller = null;
-        Exception exception = null;
-
-        try {
-            Method handleMethod = routeResult.getRouteInfo().getHandleMethod();
-            Object returnObj = null;
-            Object controllerObject = this.objectFactory.instance(handleMethod.getDeclaringClass(), true);
+        Method handleMethod = routeResult.getRouteInfo().getHandleMethod();
+        Object returnObj = null;
+        Object controllerObject = this.objectFactory.instance(handleMethod.getDeclaringClass(), true);
+        try{
             if (controllerObject instanceof Controller) {
                 controller = (Controller) controllerObject;
                 if (controller.preHandle(webContext)) {
@@ -58,28 +55,13 @@ public class ControllerInvoker {
             } else {
                 returnObj = handleMethod.invoke(controllerObject, args);
             }
-
-            if (returnObj != null) {
-                webContext.getResponse().setContentType(String.format("application/json; charset=%s", serverConfig.getCharset()));
-                webContext.getResponse().writeBody(JsonUtils.serialize(returnObj));
-            }
-
         } catch (Exception e) {
-            exception = e;
             throw new WebException("Invoke method fail :" + routeResult.getRouteInfo().getHandleMethod() + ":" + Arrays.toString(args), e);
-        } finally {
-            if (controller != null) {
-                controller.afterCompletion(webContext, exception);
-            }
         }
-
-
+        return returnObj;
     }
 
-
     private Object[] collectArgs(WebContext webContext, Method handleMethod, Map<String, String> params) {
-
-
         Class<?>[] parameterTypes = handleMethod.getParameterTypes();
         Annotation[][] parameterAnnotations = handleMethod.getParameterAnnotations();
         Object[] args = new Object[parameterTypes.length];
@@ -104,6 +86,8 @@ public class ControllerInvoker {
                         value = TypeConvertUtils.convert(paramValue, clazz);
                     } else if (annotations[0] instanceof BodyValue) {
                         value = webContext.getRequest().getBodyAsBytes();
+                    } else if(annotations[0] instanceof Dto){
+                        value = JsonUtils.deserialize(webContext.getRequest().getBodyAsString(), clazz);
                     }
                 }
 

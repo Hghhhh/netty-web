@@ -7,21 +7,23 @@ import com.github.wens.netty.web.impl.DefaultObjectFactory;
  */
 public class ServerConfig {
 
-    private String serverName = "netty-web-server";
+    private String serverName;
 
-    private int workerThreads = Runtime.getRuntime().availableProcessors() * 2;
+    private int workerThreads;
 
-    private int executorThreads = Runtime.getRuntime().availableProcessors() * 2;
+    private int executorThreads;
 
-    private String addr = "0.0.0.0";
+    private String addr;
 
-    private int port = 9999;
+    private int port;
 
-    private String charset = "UTF-8";
+    private String charset;
 
-    private String contextPath = "";
+    private String contextPath;
 
-    private String scanPackage = "";
+    private String scanPackage;
+
+    private String downloadFlag;
 
     private ObjectFactory objectFactory;
 
@@ -95,5 +97,13 @@ public class ServerConfig {
 
     public void setScanPackage(String scanPackage) {
         this.scanPackage = scanPackage;
+    }
+
+    public String getDownloadFlag() {
+        return downloadFlag;
+    }
+
+    public void setDownloadFlag(String downloadFlag) {
+        this.downloadFlag = downloadFlag;
     }
 }

@@ -19,12 +19,4 @@ public interface Controller {
      * @param context
      */
     void postHandle(WebContext context);
-
-    /**
-     * 请求处理完毕后调用
-     *
-     * @param context
-     * @param e
-     */
-    void afterCompletion(WebContext context, Exception e);
 }

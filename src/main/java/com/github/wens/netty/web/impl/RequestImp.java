@@ -24,6 +24,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,8 +44,8 @@ public class RequestImp implements Request {
     private static final Logger log = LoggerFactory.getLogger(RequestImp.class);
 
     private ChannelHandlerContext ctx;
-    private FullHttpRequest httpRequest;
 
+    private FullHttpRequest httpRequest;
 
     private Map<String, List<String>> queryStringParams;
 
@@ -60,6 +61,14 @@ public class RequestImp implements Request {
         this.httpRequest = httpRequest;
         parseParams();
         readBody();
+    }
+
+    public FullHttpRequest getHttpRequest() {
+        return httpRequest;
+    }
+
+    public ChannelHandlerContext getCtx() {
+        return ctx;
     }
 
     @Override

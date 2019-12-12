@@ -1,39 +1,30 @@
 package com.github.wens.netty.web.util;
 
-import com.github.wens.netty.web.WebException;
-import org.codehaus.jackson.map.ObjectMapper;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import com.alibaba.fastjson.JSON;
 
 /**
- * 简单的json处理工具
- *
- * @todolist 重构抽象成接口
- * <p/>
- * Created by wens on 15-9-2.
+ * @author hgh
+ * 19-12-12
  */
 public class JsonUtils {
 
-    private static ObjectMapper objectMapper = new ObjectMapper();
 
-    public static byte[] serialize(Object obj) {
-        ByteArrayOutputStream out = new ByteArrayOutputStream(1024);
-        try {
-            objectMapper.writeValue(out, obj);
-            return out.toByteArray();
-        } catch (IOException e) {
-            throw new WebException("Serialize json fail.", e);
-        } finally {
-            try {
-                out.close();
-            } catch (IOException e) {
-                //ignore
-            }
-        }
-
-
+    /**
+     * 将对象转换成json字符串。
+     */
+    public static byte[] serialize(Object data) {
+        String string = JSON.toJSONString(data);
+        return string.getBytes();
     }
 
-
+    /**
+     * 将json结果集转化为对象
+     *
+     * @param jsonData json数据
+     * @param beanType 对象中的object类型
+     */
+    public static <T> T deserialize(String jsonData, Class<T> beanType) {
+        T t = JSON.parseObject(jsonData, beanType);
+        return t;
+    }
 }

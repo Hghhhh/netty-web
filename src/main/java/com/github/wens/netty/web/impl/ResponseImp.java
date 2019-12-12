@@ -19,6 +19,7 @@ package com.github.wens.netty.web.impl;
 import com.github.wens.netty.web.Response;
 import com.github.wens.netty.web.WebException;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -53,7 +54,15 @@ public class ResponseImp implements Response {
         this.charset = charset;
         this.ctx = ctx;
         this.response = response;
-        this.byteBuf = ctx.alloc().buffer(100);
+        this.byteBuf = Unpooled.buffer(100);
+    }
+
+    public HttpResponse getResponse() {
+        return response;
+    }
+
+    public ChannelHandlerContext getCtx() {
+        return ctx;
     }
 
     @Override
@@ -143,7 +152,6 @@ public class ResponseImp implements Response {
         if (!keepAlive) {
             ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT).addListener(ChannelFutureListener.CLOSE);
         } else {
-
             ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
         }
     }

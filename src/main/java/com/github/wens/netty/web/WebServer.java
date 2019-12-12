@@ -1,8 +1,10 @@
 package com.github.wens.netty.web;
 
+import com.github.wens.file.FileMessage;
 import com.github.wens.netty.web.impl.RequestImp;
 import com.github.wens.netty.web.impl.ResponseImp;
 import com.github.wens.netty.web.route.RouteMatcher;
+import com.github.wens.netty.web.util.JsonUtils;
 import com.github.wens.netty.web.util.Threads;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.PooledByteBufAllocator;
@@ -13,6 +15,9 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.ssl.SslContext;
+import io.netty.handler.stream.ChunkedFile;
+import io.netty.handler.stream.ChunkedNioFile;
+import io.netty.handler.stream.ChunkedWriteHandler;
 import io.netty.util.CharsetUtil;
 import io.netty.util.concurrent.DefaultEventExecutorGroup;
 import io.netty.util.concurrent.EventExecutorGroup;
@@ -23,6 +28,14 @@ import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.stereotype.Component;
 
+import javax.activation.MimetypesFileTypeMap;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+
+import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
+import static io.netty.handler.codec.http.HttpHeaders.isKeepAlive;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
@@ -32,13 +45,14 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 public class WebServer {
 
     private static final Logger log = LoggerFactory.getLogger("netty-server");
+    private static final MimetypesFileTypeMap mimeTypesMap = new MimetypesFileTypeMap();
+
 
     private ServerConfig serverConfig;
 
     private RouteMatcher routeMatcher;
     private ControllerScanner controllerScanner;
     private ControllerInvoker controllerInvoker;
-
 
     public WebServer(ServerConfig config) {
         this.serverConfig = config;
@@ -71,7 +85,6 @@ public class WebServer {
 
 
     public void run() {
-
         try {
 
             EventLoopGroup bossGroup = new NioEventLoopGroup(1, Threads.makeName(serverConfig.getServerName()));
@@ -82,13 +95,10 @@ public class WebServer {
                 //b.option(ChannelOption.SO_BACKLOG, 256 );
                 //b.option(ChannelOption.SO_RCVBUF, 128);
                 //b.option(ChannelOption.SO_SNDBUF, 128);
-                b.option(ChannelOption.TCP_NODELAY, true);
-                //b.option(ChannelOption.SO_KEEPALIVE, true);
                 b.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
                 b.childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
                 b.group(bossGroup, workerGroup)
                         .channel(NioServerSocketChannel.class)
-                                //.handler(new LoggingHandler(LogLevel.INFO))
                         .childHandler(new ServerHandlerInitializer(null));
 
                 Channel ch = b.bind(this.serverConfig.getAddr(), this.serverConfig.getPort()).sync().channel();
@@ -109,45 +119,6 @@ public class WebServer {
         if (this.serverConfig == null) {
             this.serverConfig = new ServerConfig();
         }
-    }
-
-
-    private void process(ChannelHandlerContext ctx, FullHttpRequest httpRequest) {
-
-        HttpResponse httpResponse = new DefaultHttpResponse(HTTP_1_1, OK);
-        httpResponse.headers().set(HttpHeaders.Names.CONTENT_TYPE, String.format("text/plain; %s", serverConfig.getCharset()));
-        final boolean keepAlive = HttpHeaders.isKeepAlive(httpRequest);
-        if (keepAlive) {
-            httpResponse.headers().set(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
-        }
-
-
-        final String method = httpRequest.getMethod().name();
-        final String uri = httpRequest.getUri();
-        final RequestImp request = new RequestImp(ctx, httpRequest);
-        final ResponseImp response = new ResponseImp(this.serverConfig.getCharset(), ctx, httpResponse);
-        final WebContext webContext = new WebContext(request, response);
-
-        long start = System.currentTimeMillis();
-        long end = 0;
-        try {
-            controllerInvoker.invoke(method, uri, webContext);
-        } catch (Exception e) {
-            log.error("invoke controller fail.", e);
-            response.setStatus(INTERNAL_SERVER_ERROR.code(), INTERNAL_SERVER_ERROR.reasonPhrase());
-        } finally {
-            end = System.currentTimeMillis();
-        }
-
-        if (log.isDebugEnabled()) {
-            log.debug("Request:" + request + ",Response:" + response + ",elapse:" + (end - start) + "ms");
-        }
-
-        if (!response.hasFinish()) {
-            response.finish(keepAlive);
-        }
-
-
     }
 
     public void scanRouters(String packageName) {
@@ -173,10 +144,9 @@ public class WebServer {
             }
             p.addLast(new HttpServerCodec());
             p.addLast(new HttpObjectAggregator(65536));
-            //chunked + gzip 貌似某些浏览器解析不了
-            //p.addLast(new ChunkedWriteHandler());
-            //p.addLast(new HttpContentCompressor());
+            p.addLast(new ChunkedWriteHandler());
             p.addLast(this.executor, new ServerHandler());
+            p.addLast(this.executor, new DownloadHandler());
         }
     }
 
@@ -186,11 +156,69 @@ public class WebServer {
         protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest req) throws Exception {
 
             if (!req.getDecoderResult().isSuccess()) {
-                sendError(ctx, BAD_REQUEST);
+                sendError(ctx, BAD_REQUEST, BAD_REQUEST.reasonPhrase());
+                return;
+            }
+            //如果是下载任务，交由下面的handler处理
+            if(req.getUri().contains(serverConfig.getDownloadFlag())){
+                req.retain();
+                ctx.fireChannelRead(req);
+                return;
+            }
+            process(ctx, req);
+        }
+
+        protected void process(ChannelHandlerContext ctx, FullHttpRequest httpRequest) {
+
+            HttpResponse httpResponse = new DefaultHttpResponse(HTTP_1_1, OK);
+            final boolean keepAlive = HttpHeaders.isKeepAlive(httpRequest);
+            if (keepAlive) {
+                httpResponse.headers().set(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
+            }
+
+            final String method = httpRequest.getMethod().name();
+            final String uri = httpRequest.getUri();
+            final RequestImp request = new RequestImp(ctx, httpRequest);
+            final ResponseImp response = new ResponseImp(serverConfig.getCharset(), ctx, httpResponse);
+            final WebContext webContext = new WebContext(request, response);
+
+            long start = 0;
+            long end = 0;
+
+            Object res = null;
+
+            if (log.isDebugEnabled()) {
+                start = System.currentTimeMillis();
+            }
+
+            try {
+                res = controllerInvoker.invoke(method, uri, webContext);
+            }catch (Exception e){
+                log.error("invoke controller fail.", e);
+                sendError(ctx, INTERNAL_SERVER_ERROR, e.getMessage());
                 return;
             }
 
-            process(ctx, req);
+            if (log.isDebugEnabled()) {
+                end = System.currentTimeMillis();
+            }
+
+            if (log.isDebugEnabled()) {
+                log.debug("Request:" + request + ",Response:" + response + ",elapse:" + (end - start) + "ms");
+            }
+
+            processResult(res, response, keepAlive);
+
+        }
+
+        protected void processResult(Object res, ResponseImp response, Boolean keepAlive){
+            if (res != null) {
+                response.setContentType(String.format("application/json; charset=%s", serverConfig.getCharset()));
+                response.writeBody(JsonUtils.serialize((res)));
+            }
+            if (!response.hasFinish()) {
+                response.finish(keepAlive);
+            }
         }
 
         @Override
@@ -201,16 +229,82 @@ public class WebServer {
             } else {
                 ctx.close();
             }
-
         }
 
-        private void sendError(ChannelHandlerContext ctx, HttpResponseStatus status) {
+        protected void sendError(ChannelHandlerContext ctx, HttpResponseStatus status, String errorMsg) {
             FullHttpResponse response = new DefaultFullHttpResponse(
-                    HTTP_1_1, status, Unpooled.copiedBuffer("Failure: " + status + "\r\n", CharsetUtil.UTF_8));
+                    HTTP_1_1, status, Unpooled.copiedBuffer("Failure: " + errorMsg + "\r\n", CharsetUtil.UTF_8));
             response.headers().set(HttpHeaders.Names.CONTENT_TYPE, String.format("text/plain; charset=%s", serverConfig.getCharset()));
 
             // Close the connection as soon as the error message is sent.
             ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+        }
+    }
+
+
+    private class DownloadHandler extends ServerHandler {
+
+        @Override
+        protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest req) throws Exception {
+            if (!req.getDecoderResult().isSuccess()) {
+                sendError(ctx, BAD_REQUEST, BAD_REQUEST.reasonPhrase());
+                return;
+            }
+            //如果不是下载任务，则返回错误信息
+            if(!req.getUri().contains(serverConfig.getDownloadFlag())){
+                sendError(ctx, BAD_REQUEST, BAD_REQUEST.reasonPhrase());
+                return;
+            }
+            process(ctx, req);
+        }
+
+        @Override
+        protected void processResult(Object result, ResponseImp response, Boolean keepAlive){
+            if(result == null) {
+                throw new WebException("Should not return null where your router value cotains downloadFlag");
+            } else {
+                FileMessage fileMessage = (FileMessage) result;
+                ChannelHandlerContext ctx = response.getCtx();
+                HttpResponse httpResponse = response.getResponse();
+                if(fileMessage.isFile()) {
+                    File file = null;
+                    try {
+                        file = new File((String) fileMessage.getAtt());
+                        final RandomAccessFile raf = new RandomAccessFile(file, "r");
+                        long fileLength = raf.length();
+                        httpResponse.headers().set(HttpHeaders.Names.CONTENT_LENGTH, fileLength);
+                        httpResponse.headers().set(CONTENT_TYPE, mimeTypesMap.getContentType(file.getPath()));
+                        ctx.write(httpResponse);
+                        //这里用ChunkedNioFile，以支持ChunkedWriteHandler的分块异步发送
+                        //如果使用FileRegion的话，ChunkedWriteHandler不做处理
+                        ChannelFuture sendFileFuture = ctx.write(new ChunkedNioFile(raf.getChannel(), 0,
+                                fileLength, 8192), ctx.newProgressivePromise());
+                        sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
+                            @Override
+                            public void operationComplete(ChannelProgressiveFuture future)
+                                    throws Exception {
+                                raf.close();
+                            }
+                            @Override
+                            public void operationProgressed(ChannelProgressiveFuture future,
+                                                            long progress, long total) throws Exception {
+                            }
+                        });
+                        ChannelFuture lastContentFuture = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+                        if (!keepAlive) {
+                            lastContentFuture.addListener(ChannelFutureListener.CLOSE);
+                        }
+                    } catch (FileNotFoundException e) {
+                        log.error("file {} not found", file.getPath());
+                        sendError(ctx, INTERNAL_SERVER_ERROR, e.getMessage());
+                    } catch (IOException e) {
+                        log.error("file {} has a IOException: {}", file.getName(), e.getMessage());
+                        sendError(ctx, INTERNAL_SERVER_ERROR, e.getMessage());
+                    }
+                } else {
+                    super.processResult(fileMessage.getAtt(),response,keepAlive);
+                }
+            }
         }
     }
 
@@ -221,4 +315,5 @@ public class WebServer {
     public void setServerConfig(ServerConfig serverConfig) {
         this.serverConfig = serverConfig;
     }
+
 }

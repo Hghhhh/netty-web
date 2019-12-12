@@ -2,20 +2,55 @@
 
 netty-web在netty4的基础上做了轻量级封装及增强，提供方便快捷开发web应用，特别适合用来开发api类应用。
 
+本人在此基础上将其整合为SpringBoot-Starter，同时增加了文件下载功能
+
 ## features
 
 * 支持路由
 * 支持rest风格url
 * 支持表单参数注入
-* 支持文件上传
-* 支持Spring集成
+* 支持文件上传（仅支持小文件，大约64mb）
+* SpringBoot-Starter
+* 支持异步文件下载
+
+## 文件下载
+1、在配置文件中指定netty.web.download-flag
+2、@Router的value中包含download-flag的Controller方法将被标识为文件下载
+3、controller返回FileMessage对象
+4、将根据FileMessage中的att找到文件位置，异步传输给客户端
+
+### FileMessage对象说明：
+
+正常情况下，FileMessage的file属性为true，att为下载文件的绝对路径；
+如果提供文件下载功能的Controller方法不能返回文件，可设置FileMessage的file属性为false，att中附上的对象将转为Json字符串发送给客户端
+
+```java
+public class FileMessage {
+
+    private Boolean file;
+
+    /**
+     * 如果是文件的话，att为文件路径，否则为返回的json对象
+     */
+    private Object att;
+
+
+    public FileMessage(Boolean isFile, Object att){
+        this.file = isFile;
+        this.att = att;
+    }
+
+    ...
+}
+```
+
 
 ## hello world
 
 ```java
+@Component
 @Controller
 public class Helloworld {
-
 
     @Router("/hello1/{name}")
     public void hello1(WebContext context, @PathValue("name") String name) {
@@ -29,38 +64,49 @@ public class Helloworld {
 
     @Router(value = "/hello3", method = HttpMethod.POST)
     public void hello3(WebContext context, @BodyValue byte[] body) throws IOException {
-        ObjectMapper objectMapper = new ObjectMapper();
-        Map<String, String> info = objectMapper.readValue(body, new TypeReference<Map<String, String>>() {
-        });
-        context.getResponse().writeBody("Hello," + info.get("name") + "\r\n");
+    }
+
+    @Router(value = "/hello5", method = HttpMethod.POST)
+    public void hello5(WebContext context, @Dto Requset requset) throws IOException {
+        context.getResponse().writeBody("Hello," + requset.getFileName() + "\r\n");
     }
 
     //返回值可以任意类型，netty-web默认把放回值序列化json放回给客户端
     @Router("/hello4/{name}")
-    public Result hello4(@PathValue("name") String name) {
+    public Hello hello4(@PathValue("name") String name) {
         return new Result(200, "Hello," + name);
     }
 
-    public static void main(String[] args) {
-        ServerConfig serverConfig = new ServerConfig();
-        serverConfig.setPort(7777);
-        WebServer webServer = new WebServer(serverConfig);
-        webServer.scanRouters("com.github.wens.netty.web.example");
-        webServer.run();
+    @Router(value = "/download", method = HttpMethod.POST)
+    public FileMessage download(@Dto Hello request){
+        return new FileMessage(true,request.getFileName());
     }
 
+    @Router(value = "/download2", method = HttpMethod.GET)
+    public FileMessage download2(@ParamValue("name") String fileName){
+        return new FileMessage(true,fileName);
+    }
 }
 
-class Result {
+class Hello {
 
     private int code;
     private String msg;
+    private String fileName;
 
     public Result(int code, String msg) {
         this.code = code;
         this.msg = msg;
     }
 
+    public String getFileName(){
+        return fileName;
+    }
+
+    public void setFileName(String fileName){
+        this.fileName = fileName;
+    }
+    
     public int getCode() {
         return code;
     }
@@ -77,41 +123,7 @@ class Result {
         this.msg = msg;
     }
 }
-
 ```
-
-1. hello1
-    ```
-    curl http://localhost:7777/hello1/wens
-    ```
-    返回结果
-    ```
-    Hello,wens
-    ```
-2. hello2
-    ```
-    curl http://localhost:7777/hello2?name=wens
-    ```
-    返回结果
-    ```
-    Hello,wens
-    ```
-3. hello3
-    ```
-    curl -XPOST  http://localhost:7777/hello3 -d '{"name" : "wens"}'
-    ```
-    返回结果
-    ```
-    Hello,wens
-    ```
-3. hello4
-    ```
-    curl http://localhost:7777/hello4/wens
-    ```
-    返回结果
-    ```
-    {"code":200,"msg":"Hello,wens"}
-    ```
 
 ## 支持的注解
 
@@ -125,6 +137,9 @@ class Result {
     用于处理方法参数注入，@ParamValue是用来获得请求参数,相当于spring mvc @RequestParam
 * @BodyValue
     用于处理方法参数注入，@BodyValue是用来获得请求playload
+* @Dto
+    用于处理方法参数注入，将请求体由Json自动解析为Java对象    
+    
     
 ## 路由
 * 非正则路由

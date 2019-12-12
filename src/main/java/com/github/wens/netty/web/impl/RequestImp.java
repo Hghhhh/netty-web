@@ -22,10 +22,7 @@ import com.github.wens.netty.web.Request;
 import com.github.wens.netty.web.WebException;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpResponse;
-import io.netty.handler.codec.http.QueryStringDecoder;
+import io.netty.handler.codec.http.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,11 +52,26 @@ public class RequestImp implements Request {
     private byte[] bodyBytes = null;
     private String bodyString = null;
 
-
     public RequestImp(ChannelHandlerContext ctx, FullHttpRequest httpRequest) {
         this.ctx = ctx;
         this.httpRequest = httpRequest;
-        parseParams();
+        if(httpRequest.getMethod().equals(HttpMethod.POST)){
+            String contentType = httpRequest.headers().get("Content-Type");
+            if(contentType != null
+                    && (contentType.equalsIgnoreCase("multipart/form-data")
+                    || contentType.equalsIgnoreCase("application/x-www-form-urlencoded")
+                    || contentType.equalsIgnoreCase("text/plain"))
+                    ){
+                //Content-Type是表单才去解析POST请求的参数
+                parseParams();
+            }
+        }
+        if(this.params == null) {
+            this.params = Collections.EMPTY_MAP;
+        }
+        if(this.files == null){
+            this.files = Collections.EMPTY_MAP;
+        }
         readBody();
     }
 
@@ -90,10 +102,6 @@ public class RequestImp implements Request {
 
     @Override
     public FileItem getFile(String name) {
-        if (params == null) {
-
-        }
-
         return files.get(name);
     }
 
@@ -104,7 +112,6 @@ public class RequestImp implements Request {
             params = postFormDataDecoder.getParams();
             files = postFormDataDecoder.getFiles();
         } catch (Exception e) {
-
             throw new WebException("Exception when decode post form data.", e);
         } finally {
             if (postFormDataDecoder != null) {
@@ -118,18 +125,15 @@ public class RequestImp implements Request {
         return httpRequest.getMethod().name();
     }
 
-
     @Override
     public String getUri() {
         return httpRequest.getUri();
     }
 
-
     @Override
     public String getContentType() {
         return httpRequest.headers().get(HttpHeaders.Names.CONTENT_TYPE);
     }
-
 
     @Override
     public String getRemoteAddr() {
@@ -138,7 +142,6 @@ public class RequestImp implements Request {
         if (socketAddress instanceof InetSocketAddress) {
             return ((InetSocketAddress) socketAddress).getHostName();
         }
-
         return "0.0.0.0";
     }
 
@@ -150,7 +153,6 @@ public class RequestImp implements Request {
         }
         return 0;
     }
-
 
     @Override
     public String getBodyAsString() {
@@ -169,7 +171,6 @@ public class RequestImp implements Request {
             bodyBytes = new byte[readableBytes];
             content.readBytes(bodyBytes);
             bodyString = new String(bodyBytes);
-
         } catch (Exception e) {
             throw new WebException("Exception when reading body", e);
         }
@@ -198,13 +199,12 @@ public class RequestImp implements Request {
         return queryStringParams.keySet();
     }
 
-
     @Override
     public String getHeader(String header) {
         return httpRequest.headers().get(header);
     }
 
-
+    @Override
     public Set<String> getHeaders() {
         return httpRequest.headers().names();
     }

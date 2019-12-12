@@ -14,10 +14,10 @@ netty-web在netty4的基础上做了轻量级封装及增强，提供方便快�
 * 支持异步文件下载
 
 ## 文件下载
-1、在配置文件中指定netty.web.download-flag
-2、@Router的value中包含download-flag的Controller方法将被标识为文件下载
-3、controller返回FileMessage对象
-4、将根据FileMessage中的att找到文件位置，异步传输给客户端
+- 1、在配置文件中指定netty.web.download-flag
+- 2、@Router的value中包含download-flag的Controller方法将被标识为文件下载
+- 3、controller返回FileMessage对象
+- 4、将根据FileMessage中的att找到文件位置，异步传输给客户端
 
 ### FileMessage对象说明：
 
@@ -43,7 +43,6 @@ public class FileMessage {
     ...
 }
 ```
-
 
 ## hello world
 
@@ -147,7 +146,10 @@ class Hello {
 * 正则路由
     "/api/{appkey:[A-Z]+}/videos/{pagesize:\d+}",其中appkey必须为大写字母&pagesize为数字，/api/ABC/videos/10能匹配上，/api/abc/videos/10则不能
 
-
+## cookie、session
+* 不支持session
+* 对cookie的获取可以通过webContext获取Http请求头中的cookie
+* 推荐使用token来判断状态
 
 
   

@@ -19,6 +19,7 @@ import io.netty.handler.stream.ChunkedFile;
 import io.netty.handler.stream.ChunkedNioFile;
 import io.netty.handler.stream.ChunkedWriteHandler;
 import io.netty.util.CharsetUtil;
+import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.DefaultEventExecutorGroup;
 import io.netty.util.concurrent.EventExecutorGroup;
 import org.slf4j.Logger;
@@ -161,8 +162,8 @@ public class WebServer {
             }
             //如果是下载任务，交由下面的handler处理
             if(req.getUri().contains(serverConfig.getDownloadFlag())){
-                req.retain();
                 ctx.fireChannelRead(req);
+                req.retain();
                 return;
             }
             process(ctx, req);
@@ -269,27 +270,30 @@ public class WebServer {
                 if(fileMessage.isFile()) {
                     File file = null;
                     try {
-                        file = new File((String) fileMessage.getAtt());
-                        final RandomAccessFile raf = new RandomAccessFile(file, "r");
-                        long fileLength = raf.length();
-                        httpResponse.headers().set(HttpHeaders.Names.CONTENT_LENGTH, fileLength);
-                        httpResponse.headers().set(CONTENT_TYPE, mimeTypesMap.getContentType(file.getPath()));
+                        String[] filePaths = (String[]) fileMessage.getAtt();
+                        httpResponse.headers().set(HttpHeaders.Names.CONTENT_LENGTH, fileMessage.getFileLength());
+                        httpResponse.headers().set(CONTENT_TYPE, mimeTypesMap.getContentType(fileMessage.getFileName()));
                         ctx.write(httpResponse);
-                        //这里用ChunkedNioFile，以支持ChunkedWriteHandler的分块异步发送
-                        //如果使用FileRegion的话，ChunkedWriteHandler不做处理
-                        ChannelFuture sendFileFuture = ctx.write(new ChunkedNioFile(raf.getChannel(), 0,
-                                fileLength, 8192), ctx.newProgressivePromise());
-                        sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
-                            @Override
-                            public void operationComplete(ChannelProgressiveFuture future)
-                                    throws Exception {
-                                raf.close();
-                            }
-                            @Override
-                            public void operationProgressed(ChannelProgressiveFuture future,
-                                                            long progress, long total) throws Exception {
-                            }
-                        });
+                        for(String filePath : filePaths){
+                            file = new File(filePath);
+                            final RandomAccessFile raf = new RandomAccessFile(file, "r");
+                            long fileLength = raf.length();
+                            //这里用ChunkedNioFile，以支持ChunkedWriteHandler的分块异步发送
+                            //如果使用FileRegion的话，ChunkedWriteHandler不做处理
+                            ChannelFuture sendFileFuture = ctx.write(new ChunkedNioFile(raf.getChannel(), 0,
+                                    fileLength, 8192), ctx.newProgressivePromise());
+                            sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
+                                @Override
+                                public void operationComplete(ChannelProgressiveFuture future)
+                                        throws Exception {
+                                    raf.close();
+                                }
+                                @Override
+                                public void operationProgressed(ChannelProgressiveFuture future,
+                                                                long progress, long total) throws Exception {
+                                }
+                            });
+                        }
                         ChannelFuture lastContentFuture = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
                         if (!keepAlive) {
                             lastContentFuture.addListener(ChannelFutureListener.CLOSE);

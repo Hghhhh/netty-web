@@ -1,20 +1,25 @@
 package com.github.wens.netty.web.util;
 
-import com.alibaba.fastjson.JSON;
+import cn.hutool.json.JSONUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
 
 /**
  * @author hgh
  * 19-12-12
  */
 public class JsonUtils {
-
+    private static final Logger log = LoggerFactory.getLogger("JsonUtils");
 
     /**
      * 将对象转换成json字符串。
      */
     public static byte[] serialize(Object data) {
-        String string = JSON.toJSONString(data);
-        return string.getBytes();
+        String s = JSONUtil.toJsonStr(JSONUtil.parseObj(data, false));
+        return s.getBytes(Charset.forName("UTF-8"));
     }
 
     /**
@@ -23,8 +28,13 @@ public class JsonUtils {
      * @param jsonData json数据
      * @param beanType 对象中的object类型
      */
-    public static <T> T deserialize(String jsonData, Class<T> beanType) {
-        T t = JSON.parseObject(jsonData, beanType);
+    public static <T> T deserialize(byte[] jsonData, Class<T> beanType) {
+        T t = null;
+        try {
+            t = JSONUtil.toBean(new String(jsonData, "UTF-8"), beanType);
+        } catch (UnsupportedEncodingException e) {
+            log.error(e.getMessage());
+        }
         return t;
     }
 }

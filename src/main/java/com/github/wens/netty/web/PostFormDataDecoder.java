@@ -55,11 +55,7 @@ public class PostFormDataDecoder {
             while (decoder.hasNext()) {
                 InterfaceHttpData data = decoder.next();
                 if (data != null) {
-                    try {
-                        readData0(data);
-                    } finally {
-                        data.release();
-                    }
+                    readData0(data);
                 }
             }
         } catch (HttpPostRequestDecoder.EndOfDataDecoderException e) {

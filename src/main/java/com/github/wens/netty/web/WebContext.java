@@ -15,7 +15,7 @@ public class WebContext {
 
 
     public WebContext(Request request, Response response) {
-        this.request = new RequestFacade(request);
+        this.request = request;
         this.response = new ResponseFacade(response);
     }
 

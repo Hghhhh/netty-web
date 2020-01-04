@@ -7,6 +7,7 @@ import com.github.wens.netty.web.route.RouteMatcher;
 import com.github.wens.netty.web.util.JsonUtils;
 import com.github.wens.netty.web.util.Threads;
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
@@ -34,6 +35,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.net.URLEncoder;
+import java.nio.charset.Charset;
 
 import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
 import static io.netty.handler.codec.http.HttpHeaders.isKeepAlive;
@@ -46,8 +49,6 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 public class WebServer {
 
     private static final Logger log = LoggerFactory.getLogger("netty-server");
-    private static final MimetypesFileTypeMap mimeTypesMap = new MimetypesFileTypeMap();
-
 
     private ServerConfig serverConfig;
 
@@ -144,7 +145,7 @@ public class WebServer {
                 p.addLast(sslCtx.newHandler(ch.alloc()));
             }
             p.addLast(new HttpServerCodec());
-            p.addLast(new HttpObjectAggregator(65536));
+            p.addLast(new HttpObjectAggregator(1073741824));
             p.addLast(new ChunkedWriteHandler());
             p.addLast(this.executor, new ServerHandler());
             p.addLast(this.executor, new DownloadHandler());
@@ -163,7 +164,6 @@ public class WebServer {
             //如果是下载任务，交由下面的handler处理
             if(req.getUri().contains(serverConfig.getDownloadFlag())){
                 ctx.fireChannelRead(req);
-                req.retain();
                 return;
             }
             process(ctx, req);
@@ -214,8 +214,21 @@ public class WebServer {
 
         protected void processResult(Object res, ResponseImp response, Boolean keepAlive){
             if (res != null) {
-                response.setContentType(String.format("application/json; charset=%s", serverConfig.getCharset()));
-                response.writeBody(JsonUtils.serialize((res)));
+                if(res instanceof DontAutoJsonResult){
+                    Object data = ((DontAutoJsonResult) res).getRes();
+                    if(((DontAutoJsonResult) res).getContentType() != null){
+                        response.setContentType(((DontAutoJsonResult) res).getContentType());
+                    }
+                    if(data instanceof byte[]){
+                        response.writeBody((byte[]) data);
+                    }
+                    else{
+                        response.writeBody(data.toString());
+                    }
+                } else{
+                    response.setContentType(String.format("application/json; charset=%s", serverConfig.getCharset()));
+                    response.writeBody(JsonUtils.serialize((res)));
+                }
             }
             if (!response.hasFinish()) {
                 response.finish(keepAlive);
@@ -257,6 +270,8 @@ public class WebServer {
                 return;
             }
             process(ctx, req);
+            //retain要在这里，不然会引用报错
+            ReferenceCountUtil.retain(req);
         }
 
         @Override
@@ -272,7 +287,8 @@ public class WebServer {
                     try {
                         String[] filePaths = (String[]) fileMessage.getAtt();
                         httpResponse.headers().set(HttpHeaders.Names.CONTENT_LENGTH, fileMessage.getFileLength());
-                        httpResponse.headers().set(CONTENT_TYPE, mimeTypesMap.getContentType(fileMessage.getFileName()));
+                        httpResponse.headers().set(CONTENT_TYPE, "application/octet-stream");
+                        httpResponse.headers().set("Content-Disposition", "attachment ;filename=" + URLEncoder.encode(fileMessage.getFileName(), "UTF-8"));
                         ctx.write(httpResponse);
                         for(String filePath : filePaths){
                             file = new File(filePath);

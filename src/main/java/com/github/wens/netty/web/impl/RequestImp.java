@@ -57,6 +57,9 @@ public class RequestImp implements Request {
         this.httpRequest = httpRequest;
         if(httpRequest.getMethod().equals(HttpMethod.POST)){
             String contentType = httpRequest.headers().get("Content-Type");
+            if(contentType!=null){
+                contentType = contentType.split(";")[0].trim();
+            }
             if(contentType != null
                     && (contentType.equalsIgnoreCase("multipart/form-data")
                     || contentType.equalsIgnoreCase("application/x-www-form-urlencoded")
@@ -72,7 +75,6 @@ public class RequestImp implements Request {
         if(this.files == null){
             this.files = Collections.EMPTY_MAP;
         }
-        readBody();
     }
 
     public FullHttpRequest getHttpRequest() {
@@ -156,11 +158,17 @@ public class RequestImp implements Request {
 
     @Override
     public String getBodyAsString() {
+        if(bodyString == null){
+            bodyString = new String(this.getBodyAsBytes());
+        }
         return bodyString;
     }
 
     @Override
     public byte[] getBodyAsBytes() {
+        if(bodyBytes == null){
+            readBody();
+        }
         return bodyBytes;
     }
 
@@ -170,7 +178,6 @@ public class RequestImp implements Request {
             int readableBytes = content.readableBytes();
             bodyBytes = new byte[readableBytes];
             content.readBytes(bodyBytes);
-            bodyString = new String(bodyBytes);
         } catch (Exception e) {
             throw new WebException("Exception when reading body", e);
         }

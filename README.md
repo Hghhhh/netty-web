@@ -21,24 +21,34 @@ netty-web在netty4的基础上做了轻量级封装及增强，提供方便快�
 
 ### FileMessage对象说明：
 
-正常情况下，FileMessage的file属性为true，att为下载文件的绝对路径；
+正常情况下，FileMessage的file属性为true，att为下载文件的绝对路径数组；
 如果提供文件下载功能的Controller方法不能返回文件，可设置FileMessage的file属性为false，att中附上的对象将转为Json字符串发送给客户端
 
 ```java
 public class FileMessage {
 
     private Boolean file;
-
-    /**
-     * 如果是文件的话，att为文件路径，否则为返回的json对象
-     */
-    private Object att;
-
-
-    public FileMessage(Boolean isFile, Object att){
-        this.file = isFile;
-        this.att = att;
-    }
+    
+        /**
+         * 如果是文件的话，att为文件路径，否则为返回的json对象
+         */
+        private Object att;
+    
+        private String fileName;
+    
+        private Long fileLength;
+    
+        public FileMessage(Object att){
+            this.file = false;
+            this.att = att;
+        }
+    
+        public FileMessage(String[] att, String fileName, Long fileLength){
+            this.file = true;
+            this.att = att;
+            this.fileName = fileName;
+            this.fileLength = fileLength;
+        }
 
     ...
 }

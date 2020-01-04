@@ -19,7 +19,9 @@ public class TypeConvertUtils {
      * @return
      */
     public static <T> T convert(String string, Class<T> tClass) {
-
+        if(string == null){
+            return null;
+        }
 
         if (tClass.isAssignableFrom(String.class)) {
             return (T) string;

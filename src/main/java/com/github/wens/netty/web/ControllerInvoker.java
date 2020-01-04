@@ -87,7 +87,7 @@ public class ControllerInvoker {
                     } else if (annotations[0] instanceof BodyValue) {
                         value = webContext.getRequest().getBodyAsBytes();
                     } else if(annotations[0] instanceof Dto){
-                        value = JsonUtils.deserialize(webContext.getRequest().getBodyAsString(), clazz);
+                        value = JsonUtils.deserialize(webContext.getRequest().getBodyAsBytes(), clazz);
                     }
                 }
 

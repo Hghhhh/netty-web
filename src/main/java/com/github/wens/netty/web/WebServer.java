@@ -1,6 +1,7 @@
 package com.github.wens.netty.web;
 
 import com.github.wens.file.FileMessage;
+import com.github.wens.file.ImageMessage;
 import com.github.wens.netty.web.impl.RequestImp;
 import com.github.wens.netty.web.impl.ResponseImp;
 import com.github.wens.netty.web.route.RouteMatcher;
@@ -38,6 +39,7 @@ import java.io.RandomAccessFile;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
 
+import static io.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
 import static io.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
 import static io.netty.handler.codec.http.HttpHeaders.isKeepAlive;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
@@ -149,6 +151,7 @@ public class WebServer {
             p.addLast(new ChunkedWriteHandler());
             p.addLast(this.executor, new ServerHandler());
             p.addLast(this.executor, new DownloadHandler());
+            p.addLast(this.executor, new ImageDownloadHandler());
         }
     }
 
@@ -162,7 +165,9 @@ public class WebServer {
                 return;
             }
             //如果是下载任务，交由下面的handler处理
-            if(req.getUri().contains(serverConfig.getDownloadFlag())){
+            if(req.getUri().contains(serverConfig.getDownloadFlag()) ||
+                    req.getUri().contains(serverConfig.getImageFlag())){
+                ReferenceCountUtil.retain(req);
                 ctx.fireChannelRead(req);
                 return;
             }
@@ -178,6 +183,27 @@ public class WebServer {
             }
 
             final String method = httpRequest.getMethod().name();
+
+            if(method.equals("OPTIONS") && serverConfig.getCorsSupport()){
+                httpResponse.headers().set("Access-Control-Allow-Origin", serverConfig.getAccessControlAllowOrigin());
+                httpResponse.headers().set("Access-Control-Allow-Credentials", serverConfig.getAccessControlAllowCredentials());
+                httpResponse.headers().set("Access-Control-Allow-Methods", serverConfig.getAccessControlAllowMethods());
+                httpResponse.headers().set("Access-Control-Allow-Headers", serverConfig.getAccessControlAllowHeaders());
+                httpResponse.headers().set("Content-Length", 0);
+                ctx.write(httpResponse);
+                if (!keepAlive) {
+                    ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT).addListener(ChannelFutureListener.CLOSE);
+                } else {
+                    ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+                }
+                return ;
+            } else if(serverConfig.getCorsSupport()){
+                httpResponse.headers().set("Access-Control-Allow-Origin", serverConfig.getAccessControlAllowOrigin());
+                httpResponse.headers().set("Access-Control-Allow-Credentials", serverConfig.getAccessControlAllowCredentials());
+                httpResponse.headers().set("Access-Control-Allow-Methods", serverConfig.getAccessControlAllowMethods());
+                httpResponse.headers().set("Access-Control-Allow-Headers", serverConfig.getAccessControlAllowHeaders());
+            }
+
             final String uri = httpRequest.getUri();
             final RequestImp request = new RequestImp(ctx, httpRequest);
             final ResponseImp response = new ResponseImp(serverConfig.getCharset(), ctx, httpResponse);
@@ -264,14 +290,14 @@ public class WebServer {
                 sendError(ctx, BAD_REQUEST, BAD_REQUEST.reasonPhrase());
                 return;
             }
-            //如果不是下载任务，则返回错误信息
+            //如果不是下载任务，则交由下面的handler处理
             if(!req.getUri().contains(serverConfig.getDownloadFlag())){
-                sendError(ctx, BAD_REQUEST, BAD_REQUEST.reasonPhrase());
+                ReferenceCountUtil.retain(req);
+                ctx.fireChannelRead(req);
                 return;
             }
             process(ctx, req);
-            //retain要在这里，不然会引用报错
-            ReferenceCountUtil.retain(req);
+
         }
 
         @Override
@@ -323,6 +349,70 @@ public class WebServer {
                     }
                 } else {
                     super.processResult(fileMessage.getAtt(),response,keepAlive);
+                }
+            }
+        }
+    }
+
+
+    private class ImageDownloadHandler extends ServerHandler {
+
+        @Override
+        protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest req) throws Exception {
+            if (!req.getDecoderResult().isSuccess()) {
+                sendError(ctx, BAD_REQUEST, BAD_REQUEST.reasonPhrase());
+                return;
+            }
+            //如果最后不是image任务，则返回错误信息
+            if(!req.getUri().contains(serverConfig.getImageFlag())){
+                sendError(ctx, BAD_REQUEST, BAD_REQUEST.reasonPhrase());
+                return;
+            }
+            process(ctx, req);
+        }
+
+        @Override
+        protected void processResult(Object result, ResponseImp response, Boolean keepAlive){
+            if(result == null) {
+                throw new WebException("Should not return null where your router value cotains imageFlag");
+            } else {
+                ImageMessage imageMessage = (ImageMessage) result;
+                ChannelHandlerContext ctx = response.getCtx();
+                HttpResponse httpResponse = response.getResponse();
+                File file = null;
+                if(!imageMessage.getImage()){
+                    super.processResult(imageMessage.getAtt(),response,keepAlive);
+                } else{
+                    try {
+                        httpResponse.headers().set(HttpHeaders.Names.CONTENT_LENGTH, imageMessage.getSize());
+                        httpResponse.headers().set(CONTENT_TYPE, "image/" + imageMessage.getImageType());
+                        ctx.write(httpResponse);
+                        file = new File(imageMessage.getPath());
+                        final RandomAccessFile raf = new RandomAccessFile(file, "r");
+                        long fileLength = raf.length();
+                        ChannelFuture sendFileFuture = ctx.write(new ChunkedNioFile(raf.getChannel(), 0,
+                                        fileLength, 8192), ctx.newProgressivePromise());
+                        sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
+                            @Override
+                            public void operationComplete(ChannelProgressiveFuture future)
+                                    throws Exception {
+                                raf.close();
+                            }
+                            @Override
+                            public void operationProgressed(ChannelProgressiveFuture future,
+                                                            long progress, long total) throws Exception {
+                            }});
+                        ChannelFuture lastContentFuture = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+                        if (!keepAlive) {
+                                lastContentFuture.addListener(ChannelFutureListener.CLOSE);
+                        }
+                    } catch (FileNotFoundException e) {
+                        log.error("file {} not found", file.getPath());
+                        sendError(ctx, INTERNAL_SERVER_ERROR, e.getMessage());
+                    } catch (IOException e) {
+                        log.error("file {} has a IOException: {}", file.getName(), e.getMessage());
+                        sendError(ctx, INTERNAL_SERVER_ERROR, e.getMessage());
+                    }
                 }
             }
         }

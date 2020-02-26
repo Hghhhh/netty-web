@@ -25,7 +25,19 @@ public class ServerConfig {
 
     private String downloadFlag;
 
+    private String imageFlag = "image";
+
     private ObjectFactory objectFactory;
+
+    private String accessControlAllowOrigin = "*";
+
+    private String accessControlAllowCredentials = "false";
+
+    private String accessControlAllowMethods = "GET,PUT,POST,DELETE";
+
+    private String accessControlAllowHeaders = "Content-Type,Access-Control-Allow-Headers,Authorization,X-Requested-With,content-type";
+
+    private boolean corsSupport = false;
 
     public String getAddr() {
         return addr;
@@ -105,5 +117,53 @@ public class ServerConfig {
 
     public void setDownloadFlag(String downloadFlag) {
         this.downloadFlag = downloadFlag;
+    }
+
+    public String getAccessControlAllowOrigin() {
+        return accessControlAllowOrigin;
+    }
+
+    public void setAccessControlAllowOrigin(String accessControlAllowOrigin) {
+        this.accessControlAllowOrigin = accessControlAllowOrigin;
+    }
+
+    public String getAccessControlAllowCredentials() {
+        return accessControlAllowCredentials;
+    }
+
+    public void setAccessControlAllowCredentials(String accessControlAllowCredentials) {
+        this.accessControlAllowCredentials = accessControlAllowCredentials;
+    }
+
+    public String getAccessControlAllowMethods() {
+        return accessControlAllowMethods;
+    }
+
+    public void setAccessControlAllowMethods(String accessControlAllowMethods) {
+        this.accessControlAllowMethods = accessControlAllowMethods;
+    }
+
+    public String getAccessControlAllowHeaders() {
+        return accessControlAllowHeaders;
+    }
+
+    public void setAccessControlAllowHeaders(String accessControlAllowHeaders) {
+        this.accessControlAllowHeaders = accessControlAllowHeaders;
+    }
+
+    public boolean getCorsSupport() {
+        return corsSupport;
+    }
+
+    public void setCorsSupport(boolean corsSupport) {
+        this.corsSupport = corsSupport;
+    }
+
+    public String getImageFlag() {
+        return imageFlag;
+    }
+
+    public void setImageFlag(String imageFlag) {
+        this.imageFlag = imageFlag;
     }
 }

@@ -387,21 +387,24 @@ public class WebServer {
                         httpResponse.headers().set(HttpHeaders.Names.CONTENT_LENGTH, imageMessage.getSize());
                         httpResponse.headers().set(CONTENT_TYPE, "image/" + imageMessage.getImageType());
                         ctx.write(httpResponse);
-                        file = new File(imageMessage.getPath());
-                        final RandomAccessFile raf = new RandomAccessFile(file, "r");
-                        long fileLength = raf.length();
-                        ChannelFuture sendFileFuture = ctx.write(new ChunkedNioFile(raf.getChannel(), 0,
-                                        fileLength, 8192), ctx.newProgressivePromise());
-                        sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
-                            @Override
-                            public void operationComplete(ChannelProgressiveFuture future)
+                        for (String filePath : imageMessage.getPaths()) {
+                            file = new File(filePath);
+                            final RandomAccessFile raf = new RandomAccessFile(file, "r");
+                            long fileLength = raf.length();
+                            ChannelFuture sendFileFuture = ctx.write(new ChunkedNioFile(raf.getChannel(), 0,
+                                fileLength, 8192), ctx.newProgressivePromise());
+                            sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
+                                @Override
+                                public void operationComplete(ChannelProgressiveFuture future)
                                     throws Exception {
-                                raf.close();
-                            }
-                            @Override
-                            public void operationProgressed(ChannelProgressiveFuture future,
-                                                            long progress, long total) throws Exception {
-                            }});
+                                    raf.close();
+                                }
+                                @Override
+                                public void operationProgressed(ChannelProgressiveFuture future,
+                                    long progress, long total) throws Exception {
+                                }});
+                        }
+
                         ChannelFuture lastContentFuture = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
                         if (!keepAlive) {
                                 lastContentFuture.addListener(ChannelFutureListener.CLOSE);

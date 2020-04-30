@@ -6,15 +6,15 @@ public class ImageMessage {
 
     private Object att;
 
-    private String path;
+    private String[] paths;
 
     private Integer size;
 
     private String imageType;
 
-    public ImageMessage(String path, Integer size, String imageType){
+    public ImageMessage(String[] paths, Integer size, String imageType){
         this.image = true;
-        this.path = path;
+        this.paths = paths;
         this.size = size;
         this.imageType = imageType.equals("png") ? "png" : "jpeg";
     }
@@ -24,12 +24,12 @@ public class ImageMessage {
         this.att = att;
     }
 
-    public String getPath() {
-        return path;
+    public String[] getPaths() {
+        return paths;
     }
 
-    public void setPath(String path) {
-        this.path = path;
+    public void setPath(String[] paths) {
+        this.paths = paths;
     }
 
     public Integer getSize() {

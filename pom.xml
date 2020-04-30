@@ -83,6 +83,13 @@
 
     </dependencies>
 
+    <distributionManagement>
+        <repository>
+            <id>localRepository</id>
+            <url>file:F:/.m2/repository</url>
+        </repository>
+    </distributionManagement>
+
     <build>
         <pluginManagement>
 
